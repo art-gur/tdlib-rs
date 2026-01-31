@@ -61,7 +61,7 @@ fn copy_dir_all(
 ///
 /// If the OS or architecture is not supported, the function will panic.
 fn download_tdlib() {
-    let base_url = "https://github.com/FedericoBruzzone/tdlib-rs/releases/download";
+    let base_url = "https://github.com/art-gur/tdlib-rs/releases/download";
     let url = format!(
         "{}/v{}/tdlib-{}-{}-{}.zip",
         base_url,
@@ -404,7 +404,7 @@ pub fn build_download_tdlib(dest_path: Option<String>) {
 /// Using the `local-tdlib` feature, the function will copy the tdlib library from the
 /// `LOCAL_TDLIB_PATH` environment variable.
 /// The tdlib folder must contain the `lib` and `include` folders.
-/// You can directly download the tdlib library from the [TDLib Release GitHub page](https://github.com/FedericoBruzzone/tdlib-rs/releases).
+/// You can directly download the tdlib library from the [TDLib Release GitHub page](https://github.com/art-gur/tdlib-rs/releases).
 ///
 /// The `LOCAL_TDLIB_PATH` environment variable must be set to the path of the tdlib folder.
 ///
