@@ -26,6 +26,11 @@ jobs:
       matrix:
         os: [windows-latest, windows-11-arm]
         feature: [local-tdlib, download-tdlib, pkg-config, docs]
+        exclude:
+          - os: windows-11-arm
+            feature: pkg-config
+          - os: windows-11-arm
+            feature: download-tdlib
 
     runs-on: ${{ matrix.os }}
 
@@ -45,7 +50,7 @@ jobs:
           unzip -q *.zip -d .
         shell: bash
       - name: Install pkg-config
-        if: matrix.feature == 'pkg-config'
+        if: matrix.feature == 'pkg-config' && matrix.os != 'windows-11-arm'
         run: |
           mkdir pkg-config
           cd pkg-config
@@ -59,7 +64,7 @@ jobs:
           cp ./glib_2.28.8-1_win32/bin/* ./pkg-config_0.26-1_win32/bin/
         shell: bash
       - name: Set pkg-config environment variables
-        if: matrix.feature == 'pkg-config'
+        if: matrix.feature == 'pkg-config' && matrix.os != 'windows-11-arm'
         run: |
           echo "$((Get-Item .).FullName)\pkg-config\pkg-config_0.26-1_win32\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           echo "PKG_CONFIG_PATH=$((Get-Item .).FullName)\tdlib\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
