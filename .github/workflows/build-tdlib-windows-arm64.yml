@@ -1,0 +1,55 @@
+name: Build TDLib Windows ARM64
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+env:
+  TDLIB_VERSION: "1.8.60"
+  TDLIB_COMMIT: cb863c1600082404428f1a84e407b866b9d412a8
+
+jobs:
+  build-windows-arm64:
+    # Cross-compile on x64 runner since gperf doesn't build on ARM64 via vcpkg
+    runs-on: windows-latest
+    steps:
+      - name: Restore cache TDLib
+        id: cache-tdlib-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: td/
+          key: tdlib-${{ env.TDLIB_VERSION }}-windows-aarch64
+      - name: Build TDLib for ARM64
+        if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/tdlib/td.git
+          cd td
+          git checkout $TDLIB_COMMIT
+          git clone https://github.com/Microsoft/vcpkg.git
+          cd vcpkg
+          git checkout 07b30b49e5136a36100a2ce644476e60d7f3ddc1
+          ./bootstrap-vcpkg.bat
+          # Build host tools (gperf) for x64
+          ./vcpkg.exe install gperf:x64-windows
+          # Build dependencies for ARM64
+          ./vcpkg.exe install openssl:arm64-windows zlib:arm64-windows
+          cd ..
+          rm -rf build
+          mkdir build
+          cd build
+          # Cross-compile for ARM64, using x64 gperf
+          cmake -A ARM64 -DCMAKE_INSTALL_PREFIX:PATH=../tdlib -DCMAKE_TOOLCHAIN_FILE:FILEPATH=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=arm64-windows -DGPERF_EXECUTABLE=../vcpkg/installed/x64-windows/tools/gperf/gperf.exe ..
+          cmake --build . --target install --config Release
+        shell: bash
+      - name: Save cache TDLib
+        uses: actions/cache/save@v4
+        if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
+        with:
+          path: td/
+          key: ${{ steps.cache-tdlib-restore.outputs.cache-primary-key }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.cache-tdlib-restore.outputs.cache-primary-key }}
+          path: ./td/tdlib/
+          overwrite: true

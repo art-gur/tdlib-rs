@@ -98,7 +98,7 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-          - os: windows-11-arm
+          # windows-11-arm excluded: gperf doesn't compile via vcpkg on ARM64
     runs-on: ${{ matrix.os }}
     steps:
       - name: Restore cache TDLib
