@@ -31,14 +31,34 @@ jobs:
           ./bootstrap-vcpkg.bat
           # Build host tools (gperf) for x64
           ./vcpkg.exe install gperf:x64-windows
+          # Build dependencies for x64 (needed for native generator tools)
+          ./vcpkg.exe install openssl:x64-windows zlib:x64-windows
           # Build dependencies for ARM64
           ./vcpkg.exe install openssl:arm64-windows zlib:arm64-windows
           cd ..
+
+          # Stage 1: Build native x64 generators first
+          mkdir build-native
+          cd build-native
+          cmake -A x64 -DCMAKE_TOOLCHAIN_FILE:FILEPATH=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DGPERF_EXECUTABLE=../vcpkg/installed/x64-windows/tools/gperf/gperf.exe ..
+          cmake --build . --target tl-parser --config Release
+          cmake --build . --target generate_mime_types_gperf --config Release
+          cmake --build . --target generate_common --config Release
+          cmake --build . --target generate_c --config Release
+          cd ..
+
+          # Stage 2: Cross-compile TDLib for ARM64 using native generators
           rm -rf build
           mkdir build
           cd build
-          # Cross-compile for ARM64, using x64 gperf
-          cmake -A ARM64 -DCMAKE_INSTALL_PREFIX:PATH=../tdlib -DCMAKE_TOOLCHAIN_FILE:FILEPATH=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=arm64-windows -DGPERF_EXECUTABLE=../vcpkg/installed/x64-windows/tools/gperf/gperf.exe ..
+          cmake -A ARM64 -DCMAKE_INSTALL_PREFIX:PATH=../tdlib -DCMAKE_TOOLCHAIN_FILE:FILEPATH=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=arm64-windows -DGPERF_EXECUTABLE=../vcpkg/installed/x64-windows/tools/gperf/gperf.exe -DTD_ENABLE_JNI=OFF -DTD_ENABLE_DOTNET=OFF ..
+
+          # Copy generated files from native build
+          cp -r ../build-native/td/generate/auto ../td/generate/ 2>/dev/null || true
+          cp -r ../build-native/tdutils/generate/auto ../tdutils/generate/ 2>/dev/null || true
+
+          # Rebuild with generated files in place
+          cmake -A ARM64 -DCMAKE_INSTALL_PREFIX:PATH=../tdlib -DCMAKE_TOOLCHAIN_FILE:FILEPATH=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=arm64-windows -DGPERF_EXECUTABLE=../vcpkg/installed/x64-windows/tools/gperf/gperf.exe -DTD_ENABLE_JNI=OFF -DTD_ENABLE_DOTNET=OFF ..
           cmake --build . --target install --config Release
         shell: bash
       - name: Save cache TDLib
