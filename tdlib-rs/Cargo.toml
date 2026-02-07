@@ -43,7 +43,7 @@ serde_json = "1.0"
 serde_with = "3.2"
 system-deps = { version = "7", optional = true }
 reqwest = { version = "0.12.4", features = ["blocking"], optional = true }
-zip = { version = "2.0.0", optional = true }
+zip = { version = "7.4.0", optional = true }
 dirs = "6.0.0"
 
 [build-dependencies]
@@ -51,7 +51,7 @@ tdlib-rs-gen = { path = "../tdlib-rs-gen", version = "1.1.0" }
 tdlib-rs-parser = { path = "../tdlib-rs-parser", version = "1.1.0" }
 system-deps = { version = "7", optional = true }
 reqwest = { version = "0.12.4", features = ["blocking"], optional = true }
-zip = { version = "2.0.0", optional = true }
+zip = { version = "7.4.0", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
