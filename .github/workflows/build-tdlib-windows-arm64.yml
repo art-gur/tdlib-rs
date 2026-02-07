@@ -13,12 +13,14 @@ jobs:
     # Cross-compile on x64 runner since gperf doesn't build on ARM64 via vcpkg
     runs-on: windows-latest
     steps:
+      - name: Set cache key
+        run: echo "CACHE_KEY=tdlib-${{ env.TDLIB_VERSION }}-windows-latest-aarch64" >> $GITHUB_ENV
       - name: Restore cache TDLib
         id: cache-tdlib-restore
         uses: actions/cache/restore@v4
         with:
           path: td/
-          key: tdlib-${{ env.TDLIB_VERSION }}-windows-aarch64
+          key: ${{ env.CACHE_KEY }}
       - name: Build TDLib for ARM64
         if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
         run: |
@@ -59,10 +61,10 @@ jobs:
         if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
         with:
           path: td/
-          key: ${{ steps.cache-tdlib-restore.outputs.cache-primary-key }}
+          key: ${{ env.CACHE_KEY }}
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.cache-tdlib-restore.outputs.cache-primary-key }}
+          name: ${{ env.CACHE_KEY }}
           path: ./td/tdlib/
           overwrite: true

@@ -46,7 +46,7 @@ jobs:
       - name: Download TDLib
         if:  matrix.feature == 'local-tdlib' || matrix.feature == 'pkg-config'
         run: |
-          gh release download --pattern ${{ runner.arch == 'ARM64' && 'tdlib-*-windows-aarch64.zip' || 'tdlib-*-windows-x86_64.zip' }}
+          gh release download --pattern "tdlib-*-windows-*-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}.zip"
           unzip -q *.zip -d .
         shell: bash
       - name: Install pkg-config
