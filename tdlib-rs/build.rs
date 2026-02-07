@@ -229,6 +229,7 @@ fn main() -> std::io::Result<()> {
     );
 
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=tl/api.tl");
 
     #[cfg(feature = "local-tdlib")]
     println!("cargo:rerun-if-env-changed=LOCAL_TDLIB_PATH");

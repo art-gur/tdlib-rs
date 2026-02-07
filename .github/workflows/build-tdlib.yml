@@ -18,14 +18,12 @@ jobs:
           - os: ubuntu-24.04-arm
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Set cache key
-        run: echo "CACHE_KEY=tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}" >> $GITHUB_ENV
       - name: Restore cache TDLib
         id: cache-tdlib-restore
         uses: actions/cache/restore@v4
         with:
           path: td/
-          key: ${{ env.CACHE_KEY }}
+          key: tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
       - name: Build TDLib
         if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
         run: |
@@ -45,11 +43,11 @@ jobs:
         if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
         with:
           path: td/
-          key: ${{ env.CACHE_KEY }}
+          key: tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.CACHE_KEY }}
+          name: tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
           path: ./td/tdlib/
           overwrite: true
 
@@ -62,14 +60,12 @@ jobs:
           - os: macos-15 # Latest
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Set cache key
-        run: echo "CACHE_KEY=tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}" >> $GITHUB_ENV
       - name: Restore cache TDLib
         id: cache-tdlib-restore
         uses: actions/cache/restore@v4
         with:
           path: td/
-          key: ${{ env.CACHE_KEY }}
+          key: tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
       - name: Build TDLib
         if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
         run: |
@@ -87,11 +83,11 @@ jobs:
         if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
         with:
           path: td/
-          key: ${{ env.CACHE_KEY }}
+          key: tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.CACHE_KEY }}
+          name: tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
           path: ./td/tdlib/
           overwrite: true
 
@@ -104,14 +100,12 @@ jobs:
           # windows-11-arm excluded: gperf doesn't compile via vcpkg on ARM64
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Set cache key
-        run: echo "CACHE_KEY=tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}" >> $GITHUB_ENV
       - name: Restore cache TDLib
         id: cache-tdlib-restore
         uses: actions/cache/restore@v4
         with:
           path: td/
-          key: ${{ env.CACHE_KEY }}
+          key: tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
       - name: Build TDLib
         if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
         run: |
@@ -144,10 +138,10 @@ jobs:
         if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
         with:
           path: td/
-          key: ${{ env.CACHE_KEY }}
+          key: tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.CACHE_KEY }}
+          name: tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
           path: ./td/tdlib/
           overwrite: true
