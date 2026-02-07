@@ -45,7 +45,7 @@ jobs:
           path: td/
           key: tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
           path: ./td/tdlib/
@@ -85,7 +85,7 @@ jobs:
           path: td/
           key: tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
           path: ./td/tdlib/
@@ -140,7 +140,7 @@ jobs:
           path: td/
           key: tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tdlib-${{ env.TDLIB_VERSION }}-${{ matrix.os }}-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
           path: ./td/tdlib/

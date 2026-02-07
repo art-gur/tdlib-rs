@@ -61,7 +61,7 @@ jobs:
           path: td/
           key: tdlib-${{ env.TDLIB_VERSION }}-windows-latest-aarch64
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tdlib-${{ env.TDLIB_VERSION }}-windows-latest-aarch64
           path: ./td/tdlib/
