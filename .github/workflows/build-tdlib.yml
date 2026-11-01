@@ -8,7 +8,7 @@ on:
 # builds the tree of the checked-out commit. Cache keys carry the td/ tree hash:
 # a change anywhere in td/ rebuilds, and an unchanged tree reuses the cache.
 env:
-    TDLIB_VERSION: "1.8.67"
+    TDLIB_VERSION: "1.8.69"
     OPENSSL_VERSION: "3.6.1"
 
 jobs:
