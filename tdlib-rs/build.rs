@@ -18,7 +18,7 @@ use tdlib_rs_parser::tl::Definition;
 #[allow(dead_code)]
 #[cfg(not(any(feature = "docs", feature = "pkg-config")))]
 /// The version of the TDLib library.
-const TDLIB_VERSION: &str = "1.8.67";
+const TDLIB_VERSION: &str = "1.8.69";
 
 /// Load the type language definitions from a certain file.
 /// Parse errors will be printed to `stderr`, and only the
@@ -233,9 +233,12 @@ fn download_tdlib() {
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).unwrap();
-        let outpath = Path::new(&out_dir).join(file.name());
+        let outpath = Path::new(&out_dir).join(
+            file.enclosed_name()
+                .expect("TDLib archive contains an invalid entry path"),
+        );
 
-        if (*file.name()).ends_with('/') {
+        if file.is_dir() {
             std::fs::create_dir_all(&outpath).unwrap();
         } else {
             if let Some(p) = outpath.parent()

@@ -15,7 +15,7 @@ readme = "README.md"
 features = ["docs", "bots-only-api"]
 
 [package.metadata.system-deps]
-tdjson = "1.8.67"
+tdjson = "1.8.69"
 
 [features]
 # The default feature build the library using the local tdlib library
@@ -42,7 +42,7 @@ serde_json = "1"
 serde_with = "3"
 system-deps = { version = "7", optional = true }
 ureq = { version = "3", optional = true }
-zip = { version = "8", optional = true }
+zip = { version = "9", optional = true }
 dirs = "6"
 
 [build-dependencies]
@@ -50,7 +50,7 @@ tdlib-rs-gen = { workspace = true }
 tdlib-rs-parser = { workspace = true }
 system-deps = { version = "7", optional = true }
 ureq = { version = "3", optional = true }
-zip = { version = "8", optional = true }
+zip = { version = "9", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }

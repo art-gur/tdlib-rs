@@ -6,9 +6,9 @@
 
 #[allow(dead_code)]
 #[cfg(not(any(feature = "docs", feature = "pkg-config")))]
-const TDLIB_VERSION: &str = "1.8.61";
+const TDLIB_VERSION: &str = "1.8.69";
 #[cfg(feature = "download-tdlib")]
-const TDLIB_CARGO_PKG_VERSION: &str = "1.4.0";
+const TDLIB_CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg(feature = "download-tdlib")]
 /// Copy all files from a directory to another.
@@ -48,7 +48,7 @@ fn copy_dir_all(
 ///
 /// If the OS or architecture is not supported, the function will panic.
 fn download_tdlib() {
-    let base_url = "https://github.com/FedericoBruzzone/tdlib-rs/releases/download";
+    let base_url = "https://github.com/art-gur/tdlib-rs-1/releases/download";
     let url = format!(
         "{}/v{}/tdlib-{}-{}-{}.zip",
         base_url,
@@ -87,9 +87,12 @@ fn download_tdlib() {
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).unwrap();
-        let outpath = std::path::Path::new(&out_dir).join(file.name());
+        let outpath = std::path::Path::new(&out_dir).join(
+            file.enclosed_name()
+                .expect("TDLib archive contains an invalid entry path"),
+        );
 
-        if (*file.name()).ends_with('/') {
+        if file.is_dir() {
             std::fs::create_dir_all(&outpath).unwrap();
         } else {
             if let Some(p) = outpath.parent()
