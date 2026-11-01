@@ -45,8 +45,7 @@ jobs:
                   CCACHE_MAXSIZE: 512M
               run: |
                   sudo apt-get update
-                  sudo apt-get -y upgrade
-                  sudo apt-get install make git zlib1g-dev libssl-dev gperf php-cli cmake clang-18 libc++-18-dev libc++abi-18-dev
+                  sudo apt-get install -y --no-install-recommends make git zlib1g-dev libssl-dev gperf php-cli cmake clang-18 libc++-18-dev libc++abi-18-dev
                   cd td
                   rm -rf build
                   mkdir build
@@ -320,8 +319,7 @@ jobs:
                   CCACHE_MAXSIZE: 512M
               run: |
                   sudo apt-get update
-                  sudo apt-get -y upgrade
-                  sudo apt-get install make git zlib1g-dev libssl-dev gperf php-cli
+                  sudo apt-get install -y --no-install-recommends make git zlib1g-dev libssl-dev gperf php-cli
                   cd td
                   # Generate auto-generated files using native host build before cross-compiling
                   mkdir native_build
