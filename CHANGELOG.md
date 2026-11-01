@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 
 ## [Unreleased] - yyyy-mm-dd
 
+## [1.7.1] - 2026-11-02
+
+### Fixed
+
+- Android and Linux CI install only the required build packages instead of
+  upgrading the entire runner image. This avoids unrelated Firefox/Snap updates
+  failing the TDLib build before compilation starts.
+
 ## [1.7.0] - 2026-11-02
 
 ### Added
