@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 
 ## [Unreleased] - yyyy-mm-dd
 
-Here we write upgrading notes for brands. It's a team effort to make them as straightforward as possible.
+## [1.7.0] - 2026-11-02
 
 ### Added
 
@@ -16,17 +16,22 @@ Here we write upgrading notes for brands. It's a team effort to make them as str
 
 ### Changed
 
-- TDLib sources are vendored in `td/` as a squashed git subtree of
-  tdlib/td at `42e6a5259551178d1dab54a22ad96d14bd906e20` (1.8.67, 57 commits
-  past the previous pin), plus Smoothgram's `td-fs:` commits. Those live on branch
-  `smoothgram` of art-gur/td (upstream + `td-fs:` commits, rebased on upstream);
-  update with `git subtree pull --prefix=td <art-gur/td> smoothgram --squash`.
+- Updated the vendored `td/` sources to TDLib 1.8.69 at
+  `4c6377aa7386c39217878a9a56d581922ad37ca4`, preserving the existing `td-fs` patches.
 - `build-tdlib.yml` builds the checked-out `td/` instead of cloning tdlib/td.
   TDLib cache keys include the `td/` tree hash, so a source change is never
   served a stale cached build; artifact names stay `tdlib-<version>-<os>-<arch>`.
-- Synced `tdlib-rs/tl/api.tl` with the vendored scheme (doc comments only).
+- Synced `tdlib-rs/tl/api.tl`, native version requirements, and CI artifact names
+  with TDLib 1.8.69. The generated Rust API follows the new schema; downstream
+  callers may need to update changed types and function arguments.
+- Updated `zip` from 8 to 9 and adapted both TDLib archive extractors to its API.
 
 ### Fixed
+
+- The public build helper now downloads archives from this fork's releases using
+  the current crate version, matching the crate's own build script.
+- Both archive extractors validate entry paths with `enclosed_name` before
+  writing files.
 
 ## [1.6.0] - 2026-09-04
 
