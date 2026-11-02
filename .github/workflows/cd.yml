@@ -2,30 +2,49 @@ name: CD
 
 on:
   push:
-    tags:
-      - "v[0-9]+.[0-9]+.[0-9]+"
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
 
-env:
-  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  REPO: ${{ github.repository }}
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  checks:
+    uses: ./.github/workflows/ci-checks.yml
   build-tdlib:
+    needs: checks
     uses: ./.github/workflows/build-tdlib.yml
-
+  native:
+    needs: build-tdlib
+    uses: ./.github/workflows/ci-native.yml
   release_github:
     runs-on: ubuntu-latest
-    needs: build-tdlib
+    needs: native
     permissions:
-      # `gh run download` reads this run's artifacts, `gh release create`
-      # writes the release. Both are needed because a fork's GITHUB_TOKEN
-      # defaults to read-only.
-      actions: read
       contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Download artifacts
-        run: gh run download ${{ github.run_id }} -R $REPO
-      - name: Zip artifacts
-        run: find * -maxdepth 0 -type d -execdir mv '{}' tdlib \; -execdir zip -r -m -6 '{}.zip' 'tdlib' \;
-      - name: Create release
-        run: gh release create ${{ github.ref_name }} -R $REPO --generate-notes ./*.zip
+      - uses: actions/checkout@v6
+      - name: Resolve release identity
+        run: python .github/scripts/ci_metadata.py
+      - name: Validate tag
+        run: test "$GITHUB_REF_NAME" = "$RELEASE_TAG"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tdlib-*
+          path: release-artifacts
+      - name: Package and validate all platforms
+        run: python .github/scripts/package_release.py release-artifacts release-assets
+      - name: Upload complete draft, then publish
+        run: |
+          gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --verify-tag --draft --generate-notes release-assets/*.zip
+          gh release edit "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --draft=false
+  download:
+    needs: release_github
+    uses: ./.github/workflows/ci-native.yml
+    with:
+      download: true

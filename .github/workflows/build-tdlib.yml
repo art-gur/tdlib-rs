@@ -7,53 +7,62 @@ on:
 # TDLib sources are vendored in td/ (git subtree of tdlib/td), so every job
 # builds the tree of the checked-out commit. Cache keys carry the td/ tree hash:
 # a change anywhere in td/ rebuilds, and an unchanged tree reuses the cache.
-env:
-    TDLIB_VERSION: "1.8.69"
-    OPENSSL_VERSION: "3.6.1"
+permissions:
+    contents: read
 
 jobs:
+    config:
+        runs-on: ubuntu-latest
+        outputs:
+            linux: ${{ steps.metadata.outputs.linux }}
+            macos: ${{ steps.metadata.outputs.macos }}
+            windows: ${{ steps.metadata.outputs.windows }}
+            android: ${{ steps.metadata.outputs.android }}
+        steps:
+            - uses: actions/checkout@v6
+            - id: metadata
+              run: python .github/scripts/ci_metadata.py
     build-linux:
+        needs: config
         strategy:
             fail-fast: false
             matrix:
-                include:
-                    - os: ubuntu-latest
-                    - os: ubuntu-24.04-arm
+                os: ${{ fromJSON(needs.config.outputs.linux) }}
         runs-on: ${{ matrix.os }}
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
-            - name: Resolve TDLib source tree
+              uses: actions/checkout@v6
+            - name: Resolve build metadata
               shell: bash
-              run: echo "TD_TREE=$(git rev-parse HEAD:td)" >> "$GITHUB_ENV"
+              run: python .github/scripts/ci_metadata.py
             - name: Restore cache TDLib
               id: cache-tdlib-restore
               uses: actions/cache/restore@v4
               with:
                   path: td/tdlib
-                  key: tdlib-${{ env.TDLIB_VERSION }}-linux-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}-${{ env.TD_TREE }}
+                  key: ${{ env.TDLIB_ARTIFACT }}-${{ matrix.os }}-${{ env.RUNNER_IMAGE }}-${{ env.TD_TREE }}-${{ env.BUILD_RECIPE }}
             - name: Setup ccache
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
               uses: hendrikmuhs/ccache-action@v1.2
               with:
                 create-symlink: true
-                key: ccache-linux-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}-${{ env.TDLIB_VERSION }}
+                key: ccache-${{ env.TDLIB_ARTIFACT }}-${{ env.BUILD_RECIPE }}
             - name: Build TDLib
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
               env:
                   CCACHE_DIR: ${{ github.workspace }}/.ccache
-                  CCACHE_MAXSIZE: 512M
+                  CCACHE_MAXSIZE: ${{ env.CCACHE_MAXSIZE }}
               run: |
                   sudo apt-get update
-                  sudo apt-get install -y --no-install-recommends make git zlib1g-dev libssl-dev gperf php-cli cmake clang-18 libc++-18-dev libc++abi-18-dev
+                  sudo apt-get install -y --no-install-recommends make git zlib1g-dev libssl-dev gperf php-cli cmake clang-${LINUX_CLANG_VERSION} libc++-${LINUX_CLANG_VERSION}-dev libc++abi-${LINUX_CLANG_VERSION}-dev
                   cd td
                   rm -rf build
                   mkdir build
                   cd build
                   CXXFLAGS="-stdlib=libc++" \
-                  CC=/usr/bin/clang-18 \
-                  CXX=/usr/bin/clang++-18 \
-                  cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
+                  CC=/usr/bin/clang-${LINUX_CLANG_VERSION} \
+                  CXX=/usr/bin/clang++-${LINUX_CLANG_VERSION} \
+                  cmake -G Ninja -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release \
                     -DCMAKE_INSTALL_PREFIX:PATH=../tdlib \
                     -DCMAKE_C_COMPILER_LAUNCHER=ccache \
                     -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -62,9 +71,13 @@ jobs:
             - name: Copy OpenSSL and zlib static libraries
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
               run: |
-                  cp /usr/lib/*/libssl.a ./td/tdlib/lib/ || cp /usr/lib/libssl.a ./td/tdlib/lib/ || true
-                  cp /usr/lib/*/libcrypto.a ./td/tdlib/lib/ || cp /usr/lib/libcrypto.a ./td/tdlib/lib/ || true
-                  cp /usr/lib/*/libz.a ./td/tdlib/lib/ || cp /usr/lib/libz.a ./td/tdlib/lib/ || true
+                  cp /usr/lib/*/libssl.a ./td/tdlib/lib/ || cp /usr/lib/libssl.a ./td/tdlib/lib/
+                  cp /usr/lib/*/libcrypto.a ./td/tdlib/lib/ || cp /usr/lib/libcrypto.a ./td/tdlib/lib/
+                  cp /usr/lib/*/libz.a ./td/tdlib/lib/ || cp /usr/lib/libz.a ./td/tdlib/lib/
+            - name: Make pkg-config metadata relocatable
+              if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
+              shell: bash
+              run: python .github/scripts/relocate_pkgconfig.py td/tdlib
             - name: Save cache TDLib
               uses: actions/cache/save@v4
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
@@ -74,43 +87,42 @@ jobs:
             - name: Upload artifact
               uses: actions/upload-artifact@v4
               with:
-                  name: tdlib-${{ env.TDLIB_VERSION }}-linux-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
+                  name: ${{ env.TDLIB_ARTIFACT }}
                   path: ./td/tdlib/
+                  if-no-files-found: error
                   overwrite: true
 
     build-macos:
+        needs: config
         strategy:
             fail-fast: false
             matrix:
-                include:
-                    - os: macos-latest # arm64 (M1)
-                    - os: macos-26-intel # Intel # macos-13
+                os: ${{ fromJSON(needs.config.outputs.macos) }}
         runs-on: ${{ matrix.os }}
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
-            - name: Resolve TDLib source tree
+              uses: actions/checkout@v6
+            - name: Resolve build metadata
               shell: bash
-              run: echo "TD_TREE=$(git rev-parse HEAD:td)" >> "$GITHUB_ENV"
+              run: python .github/scripts/ci_metadata.py
             - name: Restore cache TDLib
               id: cache-tdlib-restore
               uses: actions/cache/restore@v4
               with:
                   path: td/tdlib
-                  key: tdlib-${{ env.TDLIB_VERSION }}-macos-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}-${{ env.TD_TREE }}
+                  key: ${{ env.TDLIB_ARTIFACT }}-${{ matrix.os }}-${{ env.RUNNER_IMAGE }}-${{ env.TD_TREE }}-${{ env.BUILD_RECIPE }}
             - name: Setup ccache
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
               uses: hendrikmuhs/ccache-action@v1.2
               with:
                 create-symlink: true
-                key: ccache-macos-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}-${{ env.TDLIB_VERSION }}
+                key: ccache-${{ env.TDLIB_ARTIFACT }}-${{ env.BUILD_RECIPE }}
             - name: Build TDLib
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
               env:
                   CCACHE_DIR: ${{ github.workspace }}/.ccache
-                  CCACHE_MAXSIZE: 512M
+                  CCACHE_MAXSIZE: ${{ env.CCACHE_MAXSIZE }}
               run: |
-                  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
                   brew install gperf openssl zlib
                   cd td
                   rm -rf build
@@ -119,7 +131,7 @@ jobs:
                   OPENSSL_DIR=$(brew --prefix openssl)
                   ZLIB_DIR=$(brew --prefix zlib)
                   cmake -G Ninja \
-                    -DCMAKE_BUILD_TYPE=Release \
+                    -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release \
                     -DOPENSSL_ROOT_DIR=$OPENSSL_DIR \
                     -DCMAKE_INSTALL_PREFIX:PATH=../tdlib \
                     -DCMAKE_C_COMPILER_LAUNCHER=ccache \
@@ -132,9 +144,13 @@ jobs:
                   OPENSSL_DIR=$(brew --prefix openssl)
                   ZLIB_DIR=$(brew --prefix zlib)
                   # Copy OpenSSL and zlib static libraries
-                  cp $OPENSSL_DIR/lib/libssl.a ./td/tdlib/lib/ || true
-                  cp $OPENSSL_DIR/lib/libcrypto.a ./td/tdlib/lib/ || true
-                  cp $ZLIB_DIR/lib/libz.a ./td/tdlib/lib/ || true
+                  cp $OPENSSL_DIR/lib/libssl.a ./td/tdlib/lib/
+                  cp $OPENSSL_DIR/lib/libcrypto.a ./td/tdlib/lib/
+                  cp $ZLIB_DIR/lib/libz.a ./td/tdlib/lib/
+            - name: Make pkg-config metadata relocatable
+              if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
+              shell: bash
+              run: python .github/scripts/relocate_pkgconfig.py td/tdlib
             - name: Save cache TDLib
               uses: actions/cache/save@v4
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
@@ -144,35 +160,35 @@ jobs:
             - name: Upload artifact
               uses: actions/upload-artifact@v4
               with:
-                  name: tdlib-${{ env.TDLIB_VERSION }}-macos-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
+                  name: ${{ env.TDLIB_ARTIFACT }}
                   path: ./td/tdlib/
+                  if-no-files-found: error
                   overwrite: true
 
     build-windows:
+        needs: config
         strategy:
             fail-fast: false
             matrix:
-                include:
-                    - os: windows-latest
-                    - os: windows-11-arm
+                os: ${{ fromJSON(needs.config.outputs.windows) }}
         runs-on: ${{ matrix.os }}
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
-            - name: Resolve TDLib source tree
+              uses: actions/checkout@v6
+            - name: Resolve build metadata
               shell: bash
-              run: echo "TD_TREE=$(git rev-parse HEAD:td)" >> "$GITHUB_ENV"
+              run: python .github/scripts/ci_metadata.py
             - name: Restore cache TDLib
               id: cache-tdlib-restore
               uses: actions/cache/restore@v4
               with:
                   path: td/tdlib
-                  key: tdlib-${{ env.TDLIB_VERSION }}-windows-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}-${{ env.TD_TREE }}
+                  key: ${{ env.TDLIB_ARTIFACT }}-${{ matrix.os }}-${{ env.RUNNER_IMAGE }}-${{ env.TD_TREE }}-${{ env.BUILD_RECIPE }}
             - name: Setup ccache
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
               uses: hendrikmuhs/ccache-action@v1.2
               with:
-                key: ccache-windows-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}-${{ env.TDLIB_VERSION }}
+                key: ccache-${{ env.TDLIB_ARTIFACT }}-${{ env.BUILD_RECIPE }}
             - name: Set up MSVC Developer Command Prompt
               uses: ilammy/msvc-dev-cmd@v1
               with:
@@ -181,12 +197,12 @@ jobs:
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
               env:
                   CCACHE_DIR: ${{ github.workspace }}/.ccache
-                  CCACHE_MAXSIZE: 512M
+                  CCACHE_MAXSIZE: ${{ env.CCACHE_MAXSIZE }}
                   CCACHE_CPP2: "yes"
                   CCACHE_SLOPPINESS: time_macros
-                  VCPKG_ROOT: "C:\\vcpkg"
                   MSYS_NO_PATHCONV: "1"
               run: |
+                  VCPKG_ROOT="${VCPKG_INSTALLATION_ROOT:?runner must provide VCPKG_INSTALLATION_ROOT}"
                   cd td
                   if [[ "$RUNNER_ARCH" == "X64" ]]; then
                     CMAKE_ARCH="x64"
@@ -212,7 +228,7 @@ jobs:
                   mkdir build-dynamic
                   cd build-dynamic
                   cmake -G Ninja \
-                      -DCMAKE_BUILD_TYPE=Release \
+                      -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release \
                       -DCMAKE_C_COMPILER_LAUNCHER=ccache \
                       -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
                       -DCMAKE_C_FLAGS="/GR- /W4" \
@@ -229,7 +245,7 @@ jobs:
                   mkdir build-static
                   cd build-static
                   cmake -G Ninja \
-                      -DCMAKE_BUILD_TYPE=Release \
+                      -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release \
                       -DCMAKE_C_COMPILER_LAUNCHER=ccache \
                       -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
                       -DCMAKE_C_FLAGS="/GR- /W4" \
@@ -242,9 +258,13 @@ jobs:
                   cd ..
                   mv ./tdjson_dynamic.lib tdlib/lib/tdjson.lib
                   # Copy dependencies to lib
-                  cp "${VCPKG_ROOT}/installed/$VCPKG_TRIPLET_STATIC/lib/"* tdlib/lib/ 2>/dev/null || true
-                  cp "${VCPKG_ROOT}/installed/$VCPKG_TRIPLET_DYNAMIC/bin/"*.dll tdlib/bin/ 2>/dev/null || true
+                  cp "${VCPKG_ROOT}/installed/$VCPKG_TRIPLET_STATIC/lib/"* tdlib/lib/ 2>/dev/null
+                  cp "${VCPKG_ROOT}/installed/$VCPKG_TRIPLET_DYNAMIC/bin/"*.dll tdlib/bin/ 2>/dev/null
               shell: bash
+            - name: Make pkg-config metadata relocatable
+              if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
+              shell: bash
+              run: python .github/scripts/relocate_pkgconfig.py td/tdlib
             - name: Save cache TDLib
               uses: actions/cache/save@v4
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
@@ -254,42 +274,43 @@ jobs:
             - name: Upload artifact
               uses: actions/upload-artifact@v4
               with:
-                  name: tdlib-${{ env.TDLIB_VERSION }}-windows-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}
+                  name: ${{ env.TDLIB_ARTIFACT }}
                   path: ./td/tdlib/
+                  if-no-files-found: error
                   overwrite: true
 
     build-android:
+        needs: config
         strategy:
             fail-fast: false
             matrix:
-                abi: [aarch64, x86_64]
+                abi: ${{ fromJSON(needs.config.outputs.android) }}
         runs-on: ubuntu-latest
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
-            - name: Resolve TDLib source tree
+              uses: actions/checkout@v6
+            - name: Resolve build metadata
               shell: bash
-              run: echo "TD_TREE=$(git rev-parse HEAD:td)" >> "$GITHUB_ENV"
+              run: python .github/scripts/ci_metadata.py --os android --arch ${{ matrix.abi }}
             - name: Restore cache TDLib
               id: cache-tdlib-restore
               uses: actions/cache/restore@v4
               with:
                   path: td/tdlib
-                  key: tdlib-${{ env.TDLIB_VERSION }}-android-${{ matrix.abi }}-${{ env.TD_TREE }}
+                  key: ${{ env.TDLIB_ARTIFACT }}-${{ runner.os }}-${{ env.RUNNER_IMAGE }}-${{ env.TD_TREE }}-${{ env.BUILD_RECIPE }}
             - name: Setup ccache
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
               uses: hendrikmuhs/ccache-action@v1.2
               with:
                 create-symlink: true
-                key: ccache-android-${{ runner.arch == 'ARM64' && 'aarch64' || 'x86_64' }}-${{ env.TDLIB_VERSION }}
+                key: ccache-${{ env.TDLIB_ARTIFACT }}-${{ env.BUILD_RECIPE }}
             - name: Setup Android NDK
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
               run: |
-                  # Install NDK r27d (27.3.13750724) for reproducible builds
-                  echo "y" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "ndk;27.3.13750724"
-                  echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/27.3.13750724" >> $GITHUB_ENV
-                  echo "ANDROID_API=29" >> $GITHUB_ENV
-                  echo "NDK_TOOLCHAIN=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64" >> $GITHUB_ENV
+                  echo "y" | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "ndk;$ANDROID_NDK_VERSION"
+                  NDK_ROOT="$ANDROID_SDK_ROOT/ndk/$ANDROID_NDK_VERSION"
+                  echo "ANDROID_NDK_ROOT=$NDK_ROOT" >> "$GITHUB_ENV"
+                  echo "NDK_TOOLCHAIN=$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64" >> "$GITHUB_ENV"
                   case "${{ matrix.abi }}" in
                     aarch64)
                       echo "OPENSSL_TARGET=android-arm64" >> $GITHUB_ENV
@@ -316,7 +337,7 @@ jobs:
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
               env:
                   CCACHE_DIR: ${{ github.workspace }}/.ccache
-                  CCACHE_MAXSIZE: 512M
+                  CCACHE_MAXSIZE: ${{ env.CCACHE_MAXSIZE }}
               run: |
                   sudo apt-get update
                   sudo apt-get install -y --no-install-recommends make git zlib1g-dev libssl-dev gperf php-cli
@@ -324,7 +345,7 @@ jobs:
                   # Generate auto-generated files using native host build before cross-compiling
                   mkdir native_build
                   cd native_build
-                  env -u OPENSSL_ROOT_DIR cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..
+                  env -u OPENSSL_ROOT_DIR cmake -G Ninja -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release ..
                   cmake --build . --target prepare_cross_compiling --parallel
                   cd ..
                   rm -rf build
@@ -333,7 +354,7 @@ jobs:
                   cmake -G Ninja -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake \
                     -DANDROID_ABI=$ANDROID_ABI \
                     -DANDROID_PLATFORM=android-$ANDROID_API \
-                    -DCMAKE_BUILD_TYPE=Release \
+                    -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release \
                     -DCMAKE_C_COMPILER_LAUNCHER=ccache \
                     -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
                     -DCMAKE_INSTALL_PREFIX:PATH=../tdlib \
@@ -362,13 +383,17 @@ jobs:
 
                   # Reduce size of shared objects while preserving runtime-required symbols.
                   find ./td/tdlib -type f \( -name "*.so" -o -name "*.so.*" \) -print0 | while IFS= read -r -d '' file; do
-                    "$STRIP_TOOL" --strip-unneeded "$file" || true
+                    "$STRIP_TOOL" --strip-unneeded "$file"
                   done
 
                   # Remove debug symbols from static libraries to keep both static and dynamic packages smaller.
                   find ./td/tdlib -type f -name "*.a" -print0 | while IFS= read -r -d '' file; do
-                    "$STRIP_TOOL" -g "$file" || true
+                    "$STRIP_TOOL" -g "$file"
                   done
+            - name: Make pkg-config metadata relocatable
+              if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
+              shell: bash
+              run: python .github/scripts/relocate_pkgconfig.py td/tdlib
             - name: Save cache TDLib
               uses: actions/cache/save@v4
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
@@ -378,6 +403,7 @@ jobs:
             - name: Upload artifact
               uses: actions/upload-artifact@v4
               with:
-                  name: tdlib-${{ env.TDLIB_VERSION }}-android-${{ matrix.abi }}
+                  name: ${{ env.TDLIB_ARTIFACT }}
                   path: ./td/tdlib/
+                  if-no-files-found: error
                   overwrite: true

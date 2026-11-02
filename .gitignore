@@ -2,3 +2,4 @@
 /target
 /.vscode
 Cargo.lock
+.github/scripts/__pycache__/
