@@ -1,0 +1,8 @@
+{
+  "tdlib": [
+    "tdactor", "tdapi", "tdclient", "tdcore", "tddb", "tde2e",
+    "tdjson_private", "tdjson_static", "tdmtproto", "tdnet", "tdsqlite", "tdutils"
+  ],
+  "windows": ["libssl", "libcrypto", "zlib"],
+  "unix": ["ssl", "crypto", "z"]
+}

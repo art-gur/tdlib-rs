@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 
 ## [Unreleased] - yyyy-mm-dd
 
+### Fixed
+
+- Branch and PR CI build and test artifacts from the current commit without
+  requiring a published release. CD runs Rust checks and native artifact checks,
+  publishes a complete draft, then tests `download-tdlib` through explicit job
+  dependencies; detached `workflow_run` reruns are removed.
+- Cargo metadata now supplies the TDLib version and release repository to both
+  build helpers and CI. Shared native configuration owns runner matrices and
+  toolchain versions; CI verifies Cargo and vendored TDLib versions agree.
+- Native cache keys include the build recipe as well as the source tree and
+  target and runner image version. Packaged pkg-config metadata no longer points
+  at build-runner paths. Release validation checks every required static library,
+  the shared library and public headers, including Android dependencies.
+- Native test jobs install their link dependencies independently. The smoke
+  check also requires the fork's `td_set_file_system` export to link.
+- Windows build helpers no longer copy hardcoded x64 DLLs into `~/.cargo/bin`.
+  Runtime DLL lookup uses the application's `PATH`. macOS static builds link
+  the platform C++ runtime without a separate `c++abi` library.
+- Example Telegram API credentials are read at runtime instead of requiring
+  embedded credentials in every CI job.
+
 ## [1.7.1] - 2026-11-02
 
 ### Fixed

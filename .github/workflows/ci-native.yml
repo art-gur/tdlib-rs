@@ -1,0 +1,79 @@
+name: Native TDLib checks
+
+on:
+  workflow_call:
+    inputs:
+      download:
+        description: Test published downloads after the release job succeeds
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  config:
+    runs-on: ubuntu-latest
+    outputs:
+      desktop: ${{ steps.metadata.outputs.desktop }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: metadata
+        run: python .github/scripts/ci_metadata.py
+  ci:
+    needs: config
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.config.outputs.desktop) }}
+        feature: ${{ fromJSON(inputs.download && '["download-tdlib", "download-tdlib,static"]' || '["local-tdlib", "pkg-config", "local-tdlib,static"]') }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: '1'
+    steps:
+      - uses: actions/checkout@v6
+      - name: Resolve build metadata
+        run: python .github/scripts/ci_metadata.py
+      - name: Download current build artifact
+        if: ${{ !inputs.download }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.TDLIB_ARTIFACT }}
+          path: tdlib
+      - name: Install Linux link dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libc++-${LINUX_CLANG_VERSION}-dev libc++abi-${LINUX_CLANG_VERSION}-dev
+      - name: Install macOS link dependencies
+        if: runner.os == 'macOS'
+        run: brew install openssl zlib
+      - name: Install Windows pkg-config
+        if: runner.os == 'Windows' && matrix.feature == 'pkg-config'
+        run: choco install pkgconfiglite --yes --no-progress
+      - name: Configure native library paths
+        if: ${{ !inputs.download }}
+        run: |
+          echo "LOCAL_TDLIB_PATH=$GITHUB_WORKSPACE/tdlib" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=$GITHUB_WORKSPACE/tdlib/lib/pkgconfig" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$GITHUB_WORKSPACE/tdlib/lib" >> "$GITHUB_ENV"
+          echo "DYLD_LIBRARY_PATH=$GITHUB_WORKSPACE/tdlib/lib" >> "$GITHUB_ENV"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            cygpath -w "$GITHUB_WORKSPACE/tdlib/bin" >> "$GITHUB_PATH"
+          fi
+      - name: Build
+        run: cargo build --verbose --features '${{ matrix.feature }}'
+      - name: Configure downloaded Windows DLLs
+        if: inputs.download && runner.os == 'Windows'
+        run: |
+          find "$CARGO_TARGET_DIR" -type d -path '*/out/tdlib/bin' | while IFS= read -r directory; do
+            cygpath -w "$directory" >> "$GITHUB_PATH"
+          done
+      - name: Clippy
+        run: cargo clippy --all-targets --features '${{ matrix.feature }}' -- -D warnings
+      - name: Native smoke check
+        run: cargo run --package tdlib-rs --example test_ci --features '${{ matrix.feature }}'

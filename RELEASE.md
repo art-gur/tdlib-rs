@@ -1,10 +1,62 @@
-```bash
-git add --all
-git commit -sm "Release v1.0.0"
-git push origin main
+# Release and CI
 
-git tag -l | xargs git tag -d
-git fetch --tags
-git tag v1.0.0
-git push origin v1.0.0
+`Cargo.toml` owns the crate version and repository. The TDLib requirement is
+`package.metadata.system-deps.tdjson` in `tdlib-rs/Cargo.toml`. Build scripts and
+CI read those fields; CI rejects a mismatch with `td/CMakeLists.txt`.
+`.github/native-build.json` owns runner matrices and native toolchain pins.
+Update intentional dependency/toolchain pins there instead of copying them into
+workflows. Historical versions in `CHANGELOG.md` and old TL schemas are snapshots.
+`tdlib-rs/native-libraries.json` declares required static libraries for both Rust
+build paths and release validation.
+
+Branch pushes and pull requests run `CI`:
+
+1. Rust format, parser/generator tests, docs-feature build and Clippy on desktop runners.
+2. Build the checked-out native TDLib sources and upload platform artifacts.
+3. Test `local-tdlib`, static linking, and `pkg-config` using this run's artifacts.
+
+Version tags run `CD` on that exact tagged commit:
+
+1. Run the same Rust checks and validate that the tag matches the crate version.
+2. Build TDLib, then run native artifact checks.
+3. Validate and package the complete platform set. Create a draft release, upload
+   every archive, then publish it.
+4. Only after publication succeeds, test `download-tdlib` with dynamic and static
+   linking. Its URL uses the tagged crate version, repository, and TDLib requirement.
+
+The final job uses an explicit `needs: release_github` dependency. No independent
+`workflow_run` or release-event trigger is needed. Failed native checks block
+publication; failed publication blocks all download jobs. A branch with an
+unreleased crate version never attempts a release download.
+
+Native cache keys include the target, runner image version, TDLib source tree and build recipe.
+pkg-config files use paths relative to their installation. Windows programs need
+the selected installation's `bin` on `PATH`; build helpers do not modify Cargo's
+global executable directory.
+
+After updating versions, committing, and pushing the release commit, create its tag:
+
+```bash
+tag=$(python .github/scripts/ci_metadata.py | python -c 'import json,sys; print(json.load(sys.stdin)["RELEASE_TAG"])')
+git tag "$tag"
+git push origin "$tag"
 ```
+
+Do not move an existing published version tag. If a release remains a draft after
+an upload failure, inspect or remove that draft before rerunning publication.
+If only the final download checks failed, rerun failed jobs against the existing
+release.
+
+Local checks:
+
+```bash
+python -m pip install -r .github/requirements.txt
+python -m unittest discover -s .github/scripts -p 'test_*.py'
+cargo fmt --all -- --check
+cargo test --workspace --exclude tdlib-rs
+cargo check --all-targets --features docs
+cargo clippy --all-targets --features docs -- -D warnings
+```
+
+These checks validate source behavior and controlled fixtures. Native packaging,
+loading and published download acceptance require the corresponding CI runners.

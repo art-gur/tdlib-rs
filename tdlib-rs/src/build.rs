@@ -4,9 +4,16 @@
 //! - `pkg-config`
 //! - `download-tdlib`
 
+#[cfg(all(
+    feature = "static",
+    any(feature = "local-tdlib", feature = "download-tdlib")
+))]
+#[path = "../native_libraries.rs"]
+mod native_libraries;
+
 #[allow(dead_code)]
 #[cfg(not(any(feature = "docs", feature = "pkg-config")))]
-const TDLIB_VERSION: &str = "1.8.69";
+const TDLIB_VERSION: &str = env!("TDLIB_RS_TDLIB_VERSION");
 #[cfg(feature = "download-tdlib")]
 const TDLIB_CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -48,7 +55,7 @@ fn copy_dir_all(
 ///
 /// If the OS or architecture is not supported, the function will panic.
 fn download_tdlib() {
-    let base_url = "https://github.com/art-gur/tdlib-rs-1/releases/download";
+    let base_url = concat!(env!("CARGO_PKG_REPOSITORY"), "/releases/download");
     let url = format!(
         "{}/v{}/tdlib-{}-{}-{}.zip",
         base_url,
@@ -59,8 +66,8 @@ fn download_tdlib() {
     );
 
     let out_dir = std::env::var("OUT_DIR").unwrap();
-    let tdlib_dir = format!("{}/tdlib", &out_dir);
-    let zip_path = format!("{}.zip", &tdlib_dir);
+    let tdlib_dir = format!("{out_dir}/tdlib");
+    let zip_path = format!("{tdlib_dir}.zip");
 
     // Download a prebuilt tdlib archive using a blocking HTTP client.
     let response = ureq::get(&url).call();
@@ -73,7 +80,7 @@ fn download_tdlib() {
                 "Your OS or architecture may be unsupported.",
                 "Please try using the `pkg-config` or `local-tdlib` features.",
                 err,
-                &url
+                url
             )
         }
     };
@@ -162,34 +169,7 @@ fn generic_build(lib_path: Option<String>) {
     };
 
     #[cfg(feature = "static")]
-    let static_libs = [
-        "tdactor",
-        "tdapi",
-        "tdclient",
-        "tdcore",
-        "tddb",
-        "tde2e",
-        "tdjson_private",
-        "tdjson_static",
-        "tdmtproto",
-        "tdnet",
-        "tdsqlite",
-        "tdutils",
-    ];
-
-    #[cfg(feature = "static")]
-    let static_libs_external = if target_os == "windows" {
-        ["libssl", "libcrypto", "zlib"]
-    } else {
-        ["ssl", "crypto", "z"]
-    };
-
-    #[cfg(feature = "static")]
-    let all_static_libs: Vec<String> = static_libs
-        .iter()
-        .map(|name| name.to_string())
-        .chain(static_libs_external.iter().map(|name| name.to_string()))
-        .collect();
+    let all_static_libs = native_libraries::static_libraries(&target_os);
 
     #[cfg(feature = "static")]
     let missing_static_libs: Vec<String> = all_static_libs
@@ -222,38 +202,6 @@ fn generic_build(lib_path: Option<String>) {
         panic!("tdjson shared library not found at {dynamic_lib_path}");
     }
 
-    // This should be not necessary, but it is a workaround because windows does not find the
-    // tdjson.dll using the commands below.
-    // TODO: investigate and if it is a bug in `cargo` or `rustc`, open an issue to `cargo` to fix
-    // this.
-    #[cfg(not(feature = "static"))]
-    if target_os == "windows" {
-        let bin_dir = format!(r"{prefix}\bin");
-        let cargo_bin = format!("{}/.cargo/bin", dirs::home_dir().unwrap().to_str().unwrap());
-
-        let libcrypto3x64 = format!(r"{bin_dir}\libcrypto-3-x64.dll");
-        let libssl3x64 = format!(r"{bin_dir}\libssl-3-x64.dll");
-        let tdjson = format!(r"{bin_dir}\tdjson.dll");
-        let zlib1 = format!(r"{bin_dir}\zlib1.dll");
-
-        let cargo_libcrypto3x64 = format!(r"{cargo_bin}\libcrypto-3-x64.dll");
-        let cargo_libssl3x64 = format!(r"{cargo_bin}\libssl-3-x64.dll");
-        let cargo_tdjson = format!(r"{cargo_bin}\tdjson.dll");
-        let cargo_zlib1 = format!(r"{cargo_bin}\zlib1.dll");
-
-        // Delete the files if they exist
-        let _ = std::fs::remove_file(&cargo_libcrypto3x64);
-        let _ = std::fs::remove_file(&cargo_libssl3x64);
-        let _ = std::fs::remove_file(&cargo_tdjson);
-        let _ = std::fs::remove_file(&cargo_zlib1);
-
-        // Move all files to cargo_bin
-        let _ = std::fs::copy(libcrypto3x64.clone(), cargo_libcrypto3x64.clone());
-        let _ = std::fs::copy(libssl3x64.clone(), cargo_libssl3x64.clone());
-        let _ = std::fs::copy(tdjson.clone(), cargo_tdjson.clone());
-        let _ = std::fs::copy(zlib1.clone(), cargo_zlib1.clone());
-    }
-
     #[cfg(not(feature = "static"))]
     if target_os == "windows" {
         let bin_dir = format!(r"{prefix}\bin");
@@ -271,7 +219,9 @@ fn generic_build(lib_path: Option<String>) {
         // Link C++ standard library for static tdlib
         if target_os == "linux" || target_os == "macos" {
             println!("cargo:rustc-link-lib=c++");
-            println!("cargo:rustc-link-lib=c++abi");
+            if target_os == "linux" {
+                println!("cargo:rustc-link-lib=c++abi");
+            }
         } else if target_os == "android" {
             println!("cargo:rustc-link-lib=static=c++_static");
         } else if target_os == "windows" {
@@ -286,7 +236,9 @@ fn generic_build(lib_path: Option<String>) {
     #[cfg(not(feature = "static"))]
     println!("cargo:rustc-link-lib=dylib=tdjson");
     #[cfg(not(feature = "static"))]
-    println!("cargo:rustc-link-arg=-Wl,-rpath,{lib_dir}");
+    if target_os != "windows" {
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{lib_dir}");
+    }
 }
 
 /// Check if the features are correctly set.
@@ -443,7 +395,7 @@ pub fn build_download_tdlib(dest_path: Option<String>) {
         download_tdlib();
         if let Some(dest_path) = &dest_path {
             let out_dir = std::env::var("OUT_DIR").unwrap();
-            let tdlib_dir = format!("{}/tdlib", &out_dir);
+            let tdlib_dir = format!("{out_dir}/tdlib");
             copy_dir_all(
                 std::path::Path::new(&tdlib_dir),
                 std::path::Path::new(&dest_path),
@@ -459,7 +411,7 @@ pub fn build_download_tdlib(dest_path: Option<String>) {
 /// Using the `local-tdlib` feature, the function will copy the tdlib library from the
 /// `LOCAL_TDLIB_PATH` environment variable.
 /// The tdlib folder must contain the `lib` and `include` folders.
-/// You can directly download the tdlib library from the [TDLib Release GitHub page](https://github.com/FedericoBruzzone/tdlib-rs/releases).
+/// You can directly download the tdlib library from the release page of the repository listed in this crate's Cargo metadata.
 ///
 /// The `LOCAL_TDLIB_PATH` environment variable must be set to the path of the tdlib folder.
 ///

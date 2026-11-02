@@ -7,6 +7,13 @@
 // <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
+#[cfg(all(
+    feature = "static",
+    any(feature = "local-tdlib", feature = "download-tdlib")
+))]
+#[path = "native_libraries.rs"]
+mod native_libraries;
+
 use std::env;
 use std::fs::File;
 use std::io::{BufWriter, Read, Write};
@@ -14,11 +21,6 @@ use std::path::Path;
 use tdlib_rs_gen::generate_rust_code;
 use tdlib_rs_parser::parse_tl_file;
 use tdlib_rs_parser::tl::Definition;
-
-#[allow(dead_code)]
-#[cfg(not(any(feature = "docs", feature = "pkg-config")))]
-/// The version of the TDLib library.
-const TDLIB_VERSION: &str = "1.8.69";
 
 /// Load the type language definitions from a certain file.
 /// Parse errors will be printed to `stderr`, and only the
@@ -80,7 +82,7 @@ fn copy_local_tdlib() {
 /// - Windows aarch64
 /// - MacOS x86_64
 /// - MacOS aarch64
-fn generic_build() {
+fn generic_build(_tdlib_version: &str) {
     let out_dir = env::var("OUT_DIR").unwrap();
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
     let prefix = format!("{out_dir}/tdlib");
@@ -89,41 +91,14 @@ fn generic_build() {
     #[cfg(not(feature = "static"))]
     let dynamic_lib_path = match target_os.as_str() {
         "android" => format!("{lib_dir}/libtdjson.so"),
-        "linux" => format!("{lib_dir}/libtdjson.so.{TDLIB_VERSION}"),
-        "macos" => format!("{lib_dir}/libtdjson.{TDLIB_VERSION}.dylib"),
+        "linux" => format!("{lib_dir}/libtdjson.so.{_tdlib_version}"),
+        "macos" => format!("{lib_dir}/libtdjson.{_tdlib_version}.dylib"),
         "windows" => format!(r"{lib_dir}\tdjson.lib"),
         _ => panic!("Unsupported target OS: {target_os}"),
     };
 
     #[cfg(feature = "static")]
-    let static_libs = [
-        "tdactor",
-        "tdapi",
-        "tdclient",
-        "tdcore",
-        "tddb",
-        "tde2e",
-        "tdjson_private",
-        "tdjson_static",
-        "tdmtproto",
-        "tdnet",
-        "tdsqlite",
-        "tdutils",
-    ];
-
-    #[cfg(feature = "static")]
-    let static_libs_external = if target_os == "windows" {
-        ["libssl", "libcrypto", "zlib"]
-    } else {
-        ["ssl", "crypto", "z"]
-    };
-
-    #[cfg(feature = "static")]
-    let all_static_libs: Vec<String> = static_libs
-        .iter()
-        .map(|name| name.to_string())
-        .chain(static_libs_external.iter().map(|name| name.to_string()))
-        .collect();
+    let all_static_libs = native_libraries::static_libraries(&target_os);
 
     #[cfg(feature = "static")]
     let missing_static_libs: Vec<String> = all_static_libs
@@ -173,7 +148,9 @@ fn generic_build() {
         // Link C++ standard library for static tdlib
         if target_os == "linux" || target_os == "macos" {
             println!("cargo:rustc-link-lib=c++");
-            println!("cargo:rustc-link-lib=c++abi");
+            if target_os == "linux" {
+                println!("cargo:rustc-link-lib=c++abi");
+            }
         } else if target_os == "android" {
             println!("cargo:rustc-link-lib=static=c++_static");
         } else if target_os == "windows" {
@@ -190,24 +167,26 @@ fn generic_build() {
     #[cfg(not(feature = "static"))]
     println!("cargo:rustc-link-lib=dylib=tdjson");
     #[cfg(not(feature = "static"))]
-    println!("cargo:rustc-link-arg=-Wl,-rpath,{lib_dir}");
+    if target_os != "windows" {
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{lib_dir}");
+    }
 }
 
 #[cfg(feature = "download-tdlib")]
-fn download_tdlib() {
-    let base_url = "https://github.com/art-gur/tdlib-rs-1/releases/download";
+fn download_tdlib(tdlib_version: &str) {
+    let base_url = concat!(env!("CARGO_PKG_REPOSITORY"), "/releases/download");
     let url = format!(
         "{}/v{}/tdlib-{}-{}-{}.zip",
         base_url,
         env!("CARGO_PKG_VERSION"),
-        TDLIB_VERSION,
+        tdlib_version,
         std::env::var("CARGO_CFG_TARGET_OS").unwrap(),
         std::env::var("CARGO_CFG_TARGET_ARCH").unwrap(),
     );
 
     let out_dir = env::var("OUT_DIR").unwrap();
-    let tdlib_dir = format!("{}/tdlib", &out_dir);
-    let zip_path = format!("{}.zip", &tdlib_dir);
+    let tdlib_dir = format!("{out_dir}/tdlib");
+    let zip_path = format!("{tdlib_dir}.zip");
 
     // Download a prebuilt tdlib archive using a blocking HTTP client.
     let response = ureq::get(&url).call();
@@ -282,6 +261,15 @@ fn main() -> std::io::Result<()> {
     );
 
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=Cargo.toml");
+    println!("cargo:rerun-if-changed=native-libraries.json");
+    let manifest: toml::Table = include_str!("Cargo.toml")
+        .parse()
+        .expect("invalid Cargo.toml");
+    let tdlib_version = manifest["package"]["metadata"]["system-deps"]["tdjson"]
+        .as_str()
+        .expect("package.metadata.system-deps.tdjson must be a version string");
+    println!("cargo:rustc-env=TDLIB_RS_TDLIB_VERSION={tdlib_version}");
 
     #[cfg(feature = "local-tdlib")]
     println!("cargo:rerun-if-env-changed=LOCAL_TDLIB_PATH");
@@ -296,7 +284,7 @@ fn main() -> std::io::Result<()> {
         system_deps::Config::new().probe().unwrap();
 
         #[cfg(feature = "download-tdlib")]
-        download_tdlib();
+        download_tdlib(tdlib_version);
 
         // It requires the following variable to be set:
         // - export LOCAL_TDLIB_PATH=$HOME/lib/tdlib
@@ -304,7 +292,7 @@ fn main() -> std::io::Result<()> {
         copy_local_tdlib();
 
         #[cfg(any(feature = "download-tdlib", feature = "local-tdlib"))]
-        generic_build();
+        generic_build(tdlib_version);
     }
 
     let out_dir = env::var("OUT_DIR").unwrap();

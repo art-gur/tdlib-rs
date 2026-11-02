@@ -1,14 +1,12 @@
-[github-license-mit]: https://github.com/FedericoBruzzone/tdlib-rs/blob/main/LICENSE-MIT
-[github-license-apache]: https://github.com/FedericoBruzzone/tdlib-rs/blob/main/LICENSE-APACHE
+[github-license-mit]: LICENSE-MIT
+[github-license-apache]: LICENSE-APACHE
 
 # tdlib-rs
 
 [![Latest version](https://img.shields.io/crates/v/tdlib_rs.svg)](https://crates.io/crates/tdlib_rs)
 [![Documentation](https://docs.rs/tdlib-rs/badge.svg)](https://docs.rs/tdlib-rs/latest/tdlib_rs/)
-[![CI Linux](https://github.com/FedericoBruzzone/tdlib-rs/actions/workflows/ci-linux.yml/badge.svg)](https://github.com/FedericoBruzzone/tdlib-rs/actions/workflows/ci-linux.yml)
-[![CI Windows](https://github.com/FedericoBruzzone/tdlib-rs/actions/workflows/ci-windows.yml/badge.svg)](https://github.com/FedericoBruzzone/tdlib-rs/actions/workflows/ci-windows.yml)
-[![CI macOS](https://github.com/FedericoBruzzone/tdlib-rs/actions/workflows/ci-macos.yml/badge.svg)](https://github.com/FedericoBruzzone/tdlib-rs/actions/workflows/ci-macos.yml)
-<!-- [![CD](https://github.com/FedericoBruzzone/tdlib-rs/actions/workflows/cd.yml/badge.svg)](https://github.com/FedericoBruzzone/tdlib-rs/actions/workflows/cd.yml) -->
+[CI](../../actions/workflows/ci.yml)
+[CD](../../actions/workflows/cd.yml)
 [![downloads](https://img.shields.io/crates/d/tdlib_rs)](https://crates.io/crates/tdlib_rs)
 ![license](https://img.shields.io/crates/l/tdlib_rs)
 
@@ -43,8 +41,8 @@ We compile it in the CI and we upload the artifacts to the GitHub releases, so w
 
 It's mainly created for using it in the [tgt](https://github.com/FedericoBruzzone/tgt) client, but it should work also for any other Rust project.
 
-Current supported TDLib version: [1.8.69](https://github.com/tdlib/td/commit/4c6377aa7386c39217878a9a56d581922ad37ca4).
-The vendored `td/` sources include this upstream revision plus the existing `td-fs` patches.
+The required TDLib version is declared in [`package.metadata.system-deps.tdjson`](tdlib-rs/Cargo.toml). Vendored sources live in [`td/`](td/); CI checks that their CMake version matches.
+The vendored sources include the `td-fs` patches.
 
 ## Cargo features
 
@@ -72,7 +70,7 @@ fn main() {
 
 ### local-tdlib
 
-`local-tdlib` require you to have the `tdlib` (version 1.8.69) compiled and installed on your system, and the following variables exported, for example in the `.bashrc` file:
+`local-tdlib` require you to have the `tdlib` (the version declared in `tdlib-rs/Cargo.toml`) compiled and installed on your system, and the following variables exported, for example in the `.bashrc` file:
 
 ```sh
 # The path to the tdlib folder
@@ -115,7 +113,7 @@ fn main() {
 }
 ```
 
-remember to have the `tdlib` (version 1.8.69) compiled on your system, and the following variables exported, for example in the `.bashrc` file:
+remember to have the `tdlib` (the version declared in `tdlib-rs/Cargo.toml`) compiled on your system, and the following variables exported, for example in the `.bashrc` file:
 
 ```sh
 # pkg-config configuration
@@ -171,3 +169,7 @@ Mantainers:
 - [rust-tdlib](https://github.com/aCLr/rust-tdlib): for inspiration about some client code.
 - [tdlib-rs](https://github.com/paper-plane-developers/tdlib-rs): for inspiration about the generator code.
 
+
+On Windows, add the selected TDLib installation's `bin` directory to `PATH` before running dynamically linked programs. Build helpers do not copy DLLs into the user's Cargo installation.
+
+CI and release ordering is documented in [RELEASE.md](RELEASE.md).
