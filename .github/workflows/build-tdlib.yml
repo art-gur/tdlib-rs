@@ -258,8 +258,9 @@ jobs:
                   cd ..
                   mv ./tdjson_dynamic.lib tdlib/lib/tdjson.lib
                   # Copy dependencies to lib
-                  cp "${VCPKG_ROOT}/installed/$VCPKG_TRIPLET_STATIC/lib/"* tdlib/lib/ 2>/dev/null
-                  cp "${VCPKG_ROOT}/installed/$VCPKG_TRIPLET_DYNAMIC/bin/"*.dll tdlib/bin/ 2>/dev/null
+                  # lib/ also contains pkgconfig/; copy library files only.
+                  cp "${VCPKG_ROOT}/installed/$VCPKG_TRIPLET_STATIC/lib/"*.lib tdlib/lib/
+                  cp "${VCPKG_ROOT}/installed/$VCPKG_TRIPLET_DYNAMIC/bin/"*.dll tdlib/bin/
               shell: bash
             - name: Make pkg-config metadata relocatable
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
@@ -386,8 +387,9 @@ jobs:
                     "$STRIP_TOOL" --strip-unneeded "$file"
                   done
 
-                  # Remove debug symbols from static libraries to keep both static and dynamic packages smaller.
-                  find ./td/tdlib -type f -name "*.a" -print0 | while IFS= read -r -d '' file; do
+                  # Strip built archives, preserving the NDK-provided libz.a unchanged:
+                  # it can contain LLVM bitcode that llvm-strip cannot process.
+                  find ./td/tdlib -type f -name "*.a" ! -name "libz.a" -print0 | while IFS= read -r -d '' file; do
                     "$STRIP_TOOL" -g "$file"
                   done
             - name: Make pkg-config metadata relocatable
