@@ -42,8 +42,11 @@ async fn handle_authorization_state(
                     false,
                     false,
                     false,
-                    env!("API_ID").parse().unwrap(),
-                    env!("API_HASH").into(),
+                    std::env::var("API_ID")
+                        .expect("set API_ID at runtime")
+                        .parse()
+                        .expect("API_ID must be an integer"),
+                    std::env::var("API_HASH").expect("set API_HASH at runtime"),
                     "en".into(),
                     "Desktop".into(),
                     String::new(),
