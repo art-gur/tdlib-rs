@@ -260,6 +260,12 @@ jobs:
                   # Copy dependencies to lib
                   # lib/ also contains pkgconfig/; copy library files only.
                   cp "${VCPKG_ROOT}/installed/$VCPKG_TRIPLET_STATIC/lib/"*.lib tdlib/lib/
+                  # zlib 1.3.2 names its Windows static library zs.lib. Keep the
+                  # zlib.lib artifact contract used by Rust and release validation.
+                  if [[ ! -f tdlib/lib/zlib.lib && -f tdlib/lib/zs.lib ]]; then
+                    cp tdlib/lib/zs.lib tdlib/lib/zlib.lib
+                  fi
+                  test -s tdlib/lib/zlib.lib
                   cp "${VCPKG_ROOT}/installed/$VCPKG_TRIPLET_DYNAMIC/bin/"*.dll tdlib/bin/
               shell: bash
             - name: Make pkg-config metadata relocatable
