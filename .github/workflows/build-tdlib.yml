@@ -47,14 +47,32 @@ jobs:
               with:
                 create-symlink: true
                 key: ccache-${{ env.TDLIB_ARTIFACT }}-${{ env.BUILD_RECIPE }}
+            - name: Install Linux build dependencies
+              if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y --no-install-recommends make git perl curl zlib1g-dev gperf php-cli cmake clang-${LINUX_CLANG_VERSION} libclang-rt-${LINUX_CLANG_VERSION}-dev libc++-${LINUX_CLANG_VERSION}-dev libc++abi-${LINUX_CLANG_VERSION}-dev libunwind-${LINUX_CLANG_VERSION}-dev
+            - name: Build static OpenSSL for Linux
+              if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
+              run: |
+                  OPENSSL_PREFIX="$RUNNER_TEMP/tdlib-openssl"
+                  OPENSSL_SOURCE="$RUNNER_TEMP/tdlib-openssl-source"
+                  mkdir -p "$OPENSSL_SOURCE"
+                  curl -fsSL "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz" -o "$RUNNER_TEMP/openssl.tar.gz"
+                  tar -xzf "$RUNNER_TEMP/openssl.tar.gz" --strip-components=1 -C "$OPENSSL_SOURCE"
+                  cd "$OPENSSL_SOURCE"
+                  # Keep the archive dependency set independent of Ubuntu's OpenSSL build options.
+                  CC=/usr/bin/clang-${LINUX_CLANG_VERSION} ./Configure no-shared no-tests no-zlib no-zstd no-brotli no-jitter -fPIC \
+                    --prefix="$OPENSSL_PREFIX" --libdir=lib
+                  make -j"$(nproc)"
+                  make install_sw
+                  echo "OPENSSL_ROOT_DIR=$OPENSSL_PREFIX" >> "$GITHUB_ENV"
             - name: Build TDLib
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
               env:
                   CCACHE_DIR: ${{ github.workspace }}/.ccache
                   CCACHE_MAXSIZE: ${{ env.CCACHE_MAXSIZE }}
               run: |
-                  sudo apt-get update
-                  sudo apt-get install -y --no-install-recommends make git zlib1g-dev libssl-dev gperf php-cli cmake clang-${LINUX_CLANG_VERSION} libclang-rt-${LINUX_CLANG_VERSION}-dev libc++-${LINUX_CLANG_VERSION}-dev libc++abi-${LINUX_CLANG_VERSION}-dev libunwind-${LINUX_CLANG_VERSION}-dev
                   cd td
                   rm -rf build
                   mkdir build
@@ -63,6 +81,10 @@ jobs:
                   CC=/usr/bin/clang-${LINUX_CLANG_VERSION} \
                   CXX=/usr/bin/clang++-${LINUX_CLANG_VERSION} \
                   cmake -G Ninja -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release \
+                    -DOPENSSL_ROOT_DIR="$OPENSSL_ROOT_DIR" \
+                    -DOPENSSL_INCLUDE_DIR="$OPENSSL_ROOT_DIR/include" \
+                    -DOPENSSL_CRYPTO_LIBRARY="$OPENSSL_ROOT_DIR/lib/libcrypto.a" \
+                    -DOPENSSL_SSL_LIBRARY="$OPENSSL_ROOT_DIR/lib/libssl.a" \
                     -DCMAKE_INSTALL_PREFIX:PATH=../tdlib \
                     -DCMAKE_C_COMPILER_LAUNCHER=ccache \
                     -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -71,8 +93,8 @@ jobs:
             - name: Copy OpenSSL and zlib static libraries
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'
               run: |
-                  cp /usr/lib/*/libssl.a ./td/tdlib/lib/ || cp /usr/lib/libssl.a ./td/tdlib/lib/
-                  cp /usr/lib/*/libcrypto.a ./td/tdlib/lib/ || cp /usr/lib/libcrypto.a ./td/tdlib/lib/
+                  cp "$OPENSSL_ROOT_DIR/lib/libssl.a" ./td/tdlib/lib/
+                  cp "$OPENSSL_ROOT_DIR/lib/libcrypto.a" ./td/tdlib/lib/
                   cp /usr/lib/*/libz.a ./td/tdlib/lib/ || cp /usr/lib/libz.a ./td/tdlib/lib/
             - name: Make pkg-config metadata relocatable
               if: steps.cache-tdlib-restore.outputs.cache-hit != 'true'

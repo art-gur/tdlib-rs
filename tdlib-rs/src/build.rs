@@ -229,6 +229,11 @@ fn generic_build(lib_path: Option<String>) {
             println!("cargo:rustc-link-lib=psapi");
             println!("cargo:rustc-link-lib=Normaliz");
             println!("cargo:rustc-link-lib=Crypt32");
+            println!("cargo:rustc-link-lib=advapi32");
+            println!("cargo:rustc-link-lib=user32");
+            println!("cargo:rustc-link-lib=ws2_32");
+            println!("cargo:rustc-link-lib=Mswsock");
+            println!("cargo:rustc-link-lib=shell32");
         } else {
             panic!("Unsupported target OS: {target_os}");
         }
