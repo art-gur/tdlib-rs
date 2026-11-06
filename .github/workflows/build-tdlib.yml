@@ -54,7 +54,7 @@ jobs:
                   CCACHE_MAXSIZE: ${{ env.CCACHE_MAXSIZE }}
               run: |
                   sudo apt-get update
-                  sudo apt-get install -y --no-install-recommends make git zlib1g-dev libssl-dev gperf php-cli cmake clang-${LINUX_CLANG_VERSION} libc++-${LINUX_CLANG_VERSION}-dev libc++abi-${LINUX_CLANG_VERSION}-dev
+                  sudo apt-get install -y --no-install-recommends make git zlib1g-dev libssl-dev gperf php-cli cmake clang-${LINUX_CLANG_VERSION} libc++-${LINUX_CLANG_VERSION}-dev libc++abi-${LINUX_CLANG_VERSION}-dev libunwind-${LINUX_CLANG_VERSION}-dev
                   cd td
                   rm -rf build
                   mkdir build
