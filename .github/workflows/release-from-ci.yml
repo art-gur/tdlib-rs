@@ -50,9 +50,7 @@ jobs:
       - name: Resolve source release identity
         run: python release-source/.github/scripts/ci_metadata.py
       - name: Validate release identity
-        run: |
-          test "$REQUESTED_TAG" = "$RELEASE_TAG"
-          test "$GITHUB_REPOSITORY" = "$RELEASE_REPOSITORY"
+        run: python release-tools/.github/scripts/release_from_ci.py identity
       - uses: actions/download-artifact@v4
         with:
           github-token: ${{ github.token }}

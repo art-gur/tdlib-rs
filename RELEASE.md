@@ -59,6 +59,8 @@ downloads its retained artifacts, and validates the complete platform set before
 changing any tag or creating a draft. Expired or incomplete artifacts block
 publication. No native build or post-publication download build runs in this path;
 the selected CI run supplies native validation, not published-download acceptance.
+Repository checks use GitHub's stable numeric ID, so a repository rename and
+redirects from the source commit's old repository URL remain valid.
 
 If the tag points to an older failed commit and has no release, enable
 `retarget_unpublished_tag`. Existing releases, including drafts, block publication;

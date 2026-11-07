@@ -11,10 +11,10 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 
-def api(path, method="GET", data=None, missing_ok=False):
-    repository = os.environ["GITHUB_REPOSITORY"]
+def api(path, method="GET", data=None, missing_ok=False, repository=None):
+    repository = repository or os.environ["GITHUB_REPOSITORY"]
     request = Request(
-        f"https://api.github.com/repos/{repository}/{path}",
+        f"https://api.github.com/repos/{repository}" + (f"/{path}" if path else ""),
         method=method,
         data=json.dumps(data).encode() if data is not None else None,
         headers={"Authorization": f'Bearer {os.environ["GH_TOKEN"]}',
@@ -35,18 +35,28 @@ def resolve(run_id):
     if not re.fullmatch(r"[0-9]+", run_id):
         raise ValueError("run_id must be numeric")
     run = api(f"actions/runs/{run_id}")
-    repository = os.environ["GITHUB_REPOSITORY"]
+    repository_id = os.environ["GITHUB_REPOSITORY_ID"]
     if (run["status"] != "completed" or run["conclusion"] != "success"
             or run["path"] != ".github/workflows/ci.yml"
             or run["event"] not in ("push", "workflow_dispatch")
             or run["head_branch"] != "main"
-            or run["repository"]["full_name"] != repository
-            or run["head_repository"]["full_name"] != repository):
+            or str(run["repository"]["id"]) != repository_id
+            or str(run["head_repository"]["id"]) != repository_id):
         raise ValueError("source must be a successful completed CI run from this repository's main branch")
     sha = run["head_sha"]
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise ValueError("invalid CI commit SHA")
     return sha
+
+
+def validate_identity(tag):
+    if tag != os.environ["RELEASE_TAG"]:
+        raise ValueError("tag does not match source Cargo version")
+    # GitHub redirects old repository names after a rename. Numeric identity
+    # remains stable for both the source metadata URL and the workflow context.
+    source = api("", repository=os.environ["RELEASE_REPOSITORY"])
+    if str(source["id"]) != os.environ["GITHUB_REPOSITORY_ID"]:
+        raise ValueError("source release repository mismatch")
 
 
 def publish(tag, sha, assets, retarget=False):
@@ -56,10 +66,7 @@ def publish(tag, sha, assets, retarget=False):
     # source metadata and the complete native platform set before this point.
     if resolve(os.environ["SOURCE_RUN_ID"]) != sha:
         raise ValueError("CI source commit changed")
-    if tag != os.environ["RELEASE_TAG"]:
-        raise ValueError("tag does not match source Cargo version")
-    if os.environ["RELEASE_REPOSITORY"] != os.environ["GITHUB_REPOSITORY"]:
-        raise ValueError("source release repository mismatch")
+    validate_identity(tag)
     archives = sorted(str(path) for path in assets.glob("*.zip"))
     if not archives:
         raise ValueError("no validated release archives")
@@ -84,13 +91,15 @@ def publish(tag, sha, assets, retarget=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(__doc__)
-    parser.add_argument("stage", choices=("resolve", "publish"))
+    parser.add_argument("stage", choices=("resolve", "identity", "publish"))
     args = parser.parse_args()
     if args.stage == "resolve":
         sha = resolve(os.environ["SOURCE_RUN_ID"])
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
             print(f"sha={sha}", file=output)
         print(f"Validated CI commit: {sha}")
+    elif args.stage == "identity":
+        validate_identity(os.environ["REQUESTED_TAG"])
     else:
         publish(os.environ["REQUESTED_TAG"], os.environ["SOURCE_SHA"], Path("release-assets"),
                 os.environ.get("RETARGET_UNPUBLISHED_TAG") == "true")
