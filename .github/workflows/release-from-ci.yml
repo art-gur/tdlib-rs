@@ -1,0 +1,67 @@
+name: Release from CI artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful CI run ID from main
+        required: true
+        type: string
+      tag:
+        description: Release tag matching the CI commit's Cargo version (for example v1.7.1)
+        required: true
+        type: string
+      retarget_unpublished_tag:
+        description: Allow moving an existing tag that has no published release
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-refs/tags/${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_RUN_ID: ${{ inputs.run_id }}
+      REQUESTED_TAG: ${{ inputs.tag }}
+      RETARGET_UNPUBLISHED_TAG: ${{ inputs.retarget_unpublished_tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: release-tools
+          persist-credentials: false
+      - name: Validate successful CI source
+        id: source
+        run: python release-tools/.github/scripts/release_from_ci.py resolve
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          path: release-source
+          persist-credentials: false
+      - name: Resolve source release identity
+        run: python release-source/.github/scripts/ci_metadata.py
+      - name: Validate release identity
+        run: |
+          test "$REQUESTED_TAG" = "$RELEASE_TAG"
+          test "$GITHUB_REPOSITORY" = "$RELEASE_REPOSITORY"
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id }}
+          pattern: tdlib-*
+          path: release-artifacts
+      - name: Package and validate all platforms
+        run: python release-source/.github/scripts/package_release.py release-artifacts release-assets
+      - name: Publish validated artifacts without rebuilding
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: python release-tools/.github/scripts/release_from_ci.py publish

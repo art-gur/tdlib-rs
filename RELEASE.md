@@ -47,6 +47,25 @@ an upload failure, inspect or remove that draft before rerunning publication.
 If only the final download checks failed, rerun failed jobs against the existing
 release.
 
+To publish a successful branch CI run without rebuilding, open Actions →
+**Release from CI artifacts** → **Run workflow** on `main`. Supply its `run_id`
+and the release `tag` matching that source commit's Cargo version. For example,
+run `42219251994` contains the checked artifacts for commit `20f1eacb0` and
+version `v1.7.1`.
+
+The workflow accepts only completed, successful runs of `.github/workflows/ci.yml`
+from this repository's `main` branch. It checks out that run's exact commit,
+downloads its retained artifacts, and validates the complete platform set before
+changing any tag or creating a draft. Expired or incomplete artifacts block
+publication. No native build or post-publication download build runs in this path;
+the selected CI run supplies native validation, not published-download acceptance.
+
+If the tag points to an older failed commit and has no release, enable
+`retarget_unpublished_tag`. Existing releases, including drafts, block publication;
+inspect or remove an unfinished draft before retrying. Tag changes use the
+workflow's `GITHUB_TOKEN`, so they do not trigger the tag-push CD or rebuild TDLib.
+Do not push the replacement tag manually when using this path.
+
 Local checks:
 
 ```bash
